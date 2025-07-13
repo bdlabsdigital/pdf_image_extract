@@ -10,6 +10,10 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- 2025-01-13: **API Credit Conservation**: Removed continuous server-side polling to prevent credit wastage
+- 2025-01-13: **Manual Result Checking**: Added "Check Results" button for on-demand status updates
+- 2025-01-13: **Reduced Frontend Polling**: Changed from 2-second to 10-second intervals
+- 2025-01-13: **Smart Result Fetching**: Results only checked when explicitly requested
 - 2025-01-13: Fixed Datalab API schema validation errors by making nullable fields optional
 - 2025-01-13: Implemented exponential backoff polling to handle API rate limits (429 errors)
 - 2025-01-13: Added better error handling and logging for API responses

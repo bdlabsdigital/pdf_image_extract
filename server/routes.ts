@@ -31,7 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get specific job by ID
+  // Get specific job by ID with optional result checking
   app.get("/api/jobs/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -39,6 +39,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
+      
+      // If job is processing and has a request ID, check for results
+      if (job.status === "processing" && job.requestId) {
+        try {
+          const resultResponse = await axios.get(`${DATALAB_BASE_URL}/marker/${job.requestId}`, {
+            headers: {
+              "X-API-Key": DATALAB_API_KEY,
+            },
+          });
+
+          const result = datalabResultSchema.parse(resultResponse.data);
+          
+          if (result.status === "completed" && result.success) {
+            // Process the results
+            const processedData = await processResults(result);
+            
+            const updatedJob = await storage.updateJob(id, {
+              status: "completed",
+              completedAt: new Date(),
+              jsonResult: processedData.json,
+              images: processedData.images,
+              questionsFound: processedData.questionsFound,
+              imagesExtracted: processedData.imagesExtracted,
+              tablesConverted: processedData.tablesConverted,
+            });
+            
+            return res.json(updatedJob);
+          } else if (result.status === "failed") {
+            const updatedJob = await storage.updateJob(id, {
+              status: "failed",
+              error: result.error || "Processing failed",
+              completedAt: new Date(),
+            });
+            return res.json(updatedJob);
+          }
+        } catch (error: any) {
+          console.log("Error checking job status:", error.message);
+          // Don't fail the request, just return current job status
+          if (error.response?.status === 429) {
+            console.log("Rate limit hit while checking job status");
+          }
+        }
+      }
+      
       res.json(job);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch job" });
@@ -143,6 +187,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manual result check endpoint
+  app.post("/api/jobs/:id/check", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const job = await storage.getJob(id);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (job.status !== "processing" || !job.requestId) {
+        return res.json({ message: "Job is not in processing state", job });
+      }
+      
+      try {
+        const resultResponse = await axios.get(`${DATALAB_BASE_URL}/marker/${job.requestId}`, {
+          headers: {
+            "X-API-Key": DATALAB_API_KEY,
+          },
+        });
+
+        const result = datalabResultSchema.parse(resultResponse.data);
+        
+        if (result.status === "completed" && result.success) {
+          const processedData = await processResults(result);
+          
+          const updatedJob = await storage.updateJob(id, {
+            status: "completed",
+            completedAt: new Date(),
+            jsonResult: processedData.json,
+            images: processedData.images,
+            questionsFound: processedData.questionsFound,
+            imagesExtracted: processedData.imagesExtracted,
+            tablesConverted: processedData.tablesConverted,
+          });
+          
+          return res.json({ message: "Job completed successfully", job: updatedJob });
+        } else if (result.status === "failed") {
+          const updatedJob = await storage.updateJob(id, {
+            status: "failed",
+            error: result.error || "Processing failed",
+            completedAt: new Date(),
+          });
+          return res.json({ message: "Job failed", job: updatedJob });
+        } else {
+          return res.json({ message: "Job still processing", status: result.status });
+        }
+      } catch (error: any) {
+        if (error.response?.status === 429) {
+          return res.status(429).json({ error: "Rate limit reached. Please wait before checking again." });
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error("Error checking job manually:", error);
+      res.status(500).json({ error: "Failed to check job status" });
+    }
+  });
+
   // Check API health
   app.get("/api/health", async (req, res) => {
     try {
@@ -214,69 +317,14 @@ async function processDocument(
 
     await storage.updateJob(jobId, { requestId: submitResult.request_id });
 
-    // Poll for results with exponential backoff to handle rate limits
-    let attempts = 0;
-    const maxAttempts = 20; // Reduce attempts but increase wait time
-    
-    while (attempts < maxAttempts) {
-      // Exponential backoff: start with 15s, increase each time, max 120s
-      const waitTime = Math.min(15000 + (attempts * 10000), 120000);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      
-      try {
-        const resultResponse = await axios.get(`${DATALAB_BASE_URL}/marker/${submitResult.request_id}`, {
-          headers: {
-            "X-API-Key": DATALAB_API_KEY,
-          },
-        });
+    // Store job as pending - let frontend poll for results instead
+    await storage.updateJob(jobId, { 
+      status: "processing",
+      requestId: submitResult.request_id 
+    });
 
-        console.log("Raw result response:", JSON.stringify(resultResponse.data, null, 2));
-
-        let result;
-        try {
-          result = datalabResultSchema.parse(resultResponse.data);
-        } catch (validationError: any) {
-          console.error("Result validation failed:", validationError);
-          console.error("Raw result data:", resultResponse.data);
-          throw new Error(`Invalid result format: ${validationError.message}`);
-        }
-        
-        if (result.status === "completed" && result.success) {
-          // Process the results
-          const processedData = await processResults(result);
-          
-          await storage.updateJob(jobId, {
-            status: "completed",
-            completedAt: new Date(),
-            jsonResult: processedData.json,
-            images: processedData.images,
-            questionsFound: processedData.questionsFound,
-            imagesExtracted: processedData.imagesExtracted,
-            tablesConverted: processedData.tablesConverted,
-          });
-          
-          return;
-        } else if (result.status === "failed") {
-          throw new Error(result.error || "Processing failed");
-        }
-      } catch (error: any) {
-        console.log(`Attempt ${attempts + 1} failed:`, error.message);
-        
-        // Handle rate limiting specifically
-        if (error.response?.status === 429) {
-          console.log("Rate limit hit, waiting longer before next attempt...");
-          await new Promise(resolve => setTimeout(resolve, 60000)); // Wait extra 60s for rate limit
-        }
-        
-        if (attempts === maxAttempts - 1) {
-          throw error;
-        }
-      }
-      
-      attempts++;
-    }
-    
-    throw new Error("Processing timed out");
+    // Return immediately - frontend will poll for completion
+    return;
   } catch (error) {
     console.error("Error processing document:", error);
     await storage.updateJob(jobId, {

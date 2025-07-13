@@ -1,6 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, Circle, Loader2, RefreshCw } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { ProcessingJob } from "@shared/schema";
 
 interface ProcessingStatusProps {
@@ -8,6 +11,21 @@ interface ProcessingStatusProps {
 }
 
 export function ProcessingStatus({ job }: ProcessingStatusProps) {
+  const queryClient = useQueryClient();
+  
+  const checkResultsMutation = useMutation({
+    mutationFn: async (jobId: number) => {
+      return apiRequest({ 
+        url: `/api/jobs/${jobId}/check`, 
+        method: 'POST' 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', job?.id] });
+    }
+  });
+
   if (!job) return null;
 
   const getStepStatus = (stepIndex: number) => {
@@ -89,6 +107,32 @@ export function ProcessingStatus({ job }: ProcessingStatusProps) {
             <p className={`text-sm ${job.status === "failed" ? "text-red-700" : "text-blue-700"}`}>
               <strong>Current:</strong> {getCurrentStepMessage()}
             </p>
+            
+            {job.status === "processing" && (
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-xs text-gray-600">
+                  Need to check for results? Click the button to manually check status.
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => checkResultsMutation.mutate(job.id)}
+                  disabled={checkResultsMutation.isPending}
+                >
+                  {checkResultsMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Check Results
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

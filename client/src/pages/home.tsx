@@ -31,7 +31,7 @@ export default function Home() {
     refetchInterval: 30000, // Check every 30 seconds
   });
 
-  // Current job query
+  // Current job query with reduced polling to save API credits
   const { data: currentJob, refetch: refetchJob } = useQuery({
     queryKey: ["/api/jobs", processingJobId],
     enabled: !!processingJobId,
@@ -39,7 +39,7 @@ export default function Home() {
       if (!data || data.status === "completed" || data.status === "failed") {
         return false;
       }
-      return 2000; // Poll every 2 seconds while processing
+      return 10000; // Poll every 10 seconds while processing (reduced from 2s)
     },
   });
 
@@ -138,6 +138,9 @@ export default function Home() {
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">Math Paper Parser</h1>
                 <p className="text-xs text-gray-500">Singapore Math Papers → JSON + Images</p>
+              </div>
+              <div className="ml-4 px-3 py-1 bg-blue-100 rounded-full">
+                <p className="text-xs text-blue-800 font-medium">API Credit Optimized</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
