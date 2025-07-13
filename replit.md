@@ -10,6 +10,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- 2025-01-13: Fixed Datalab API schema validation errors by making nullable fields optional
+- 2025-01-13: Implemented exponential backoff polling to handle API rate limits (429 errors)
+- 2025-01-13: Added better error handling and logging for API responses
 - 2025-01-13: Simplified output format to single option: "JSON Questions + WebP Images"
 - 2025-01-13: Updated question parsing to match Singapore math paper JSON structure
 - 2025-01-13: Fixed TypeScript compilation errors for multer and archiver

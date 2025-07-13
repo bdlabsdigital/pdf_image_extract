@@ -214,12 +214,14 @@ async function processDocument(
 
     await storage.updateJob(jobId, { requestId: submitResult.request_id });
 
-    // Poll for results
+    // Poll for results with exponential backoff to handle rate limits
     let attempts = 0;
-    const maxAttempts = 60; // 5 minutes with 5-second intervals
+    const maxAttempts = 20; // Reduce attempts but increase wait time
     
     while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+      // Exponential backoff: start with 15s, increase each time, max 120s
+      const waitTime = Math.min(15000 + (attempts * 10000), 120000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
       
       try {
         const resultResponse = await axios.get(`${DATALAB_BASE_URL}/marker/${submitResult.request_id}`, {
@@ -257,7 +259,15 @@ async function processDocument(
         } else if (result.status === "failed") {
           throw new Error(result.error || "Processing failed");
         }
-      } catch (error) {
+      } catch (error: any) {
+        console.log(`Attempt ${attempts + 1} failed:`, error.message);
+        
+        // Handle rate limiting specifically
+        if (error.response?.status === 429) {
+          console.log("Rate limit hit, waiting longer before next attempt...");
+          await new Promise(resolve => setTimeout(resolve, 60000)); // Wait extra 60s for rate limit
+        }
+        
         if (attempts === maxAttempts - 1) {
           throw error;
         }
