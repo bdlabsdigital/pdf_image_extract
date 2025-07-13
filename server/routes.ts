@@ -9,6 +9,10 @@ import axios from "axios";
 import archiver from "archiver";
 import sharp from "sharp";
 import { Readable } from "stream";
+import fs from "fs";
+import path from "path";
+import PDFServicesSdk from "@adobe/pdfservices-node-sdk";
+import extract from "extract-zip";
 
 // Extend Express Request type to include file
 interface MulterRequest extends Request {
@@ -19,6 +23,10 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const DATALAB_API_KEY = process.env.DATALAB_API_KEY || "yNIcatEQ_AI3roU68t3GWecVSY6k48FpvuOUVTCTgT4";
 const DATALAB_BASE_URL = "https://www.datalab.to/api/v1";
+
+// Adobe PDF Services configuration
+const ADOBE_CLIENT_ID = process.env.ADOBE_CLIENT_ID;
+const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get recent processing jobs
@@ -122,8 +130,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: null,
       });
 
-      // Start processing asynchronously
-      processDocument(job.id, req.file.buffer, {
+      // Start processing asynchronously with Adobe PDF Services
+      processDocumentWithAdobe(job.id, req.file.buffer, req.file.originalname, {
         pageRange,
         outputFormat,
         useLlm: useLlm === "true",
@@ -262,6 +270,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+async function processDocumentWithAdobe(
+  jobId: number,
+  fileBuffer: Buffer,
+  filename: string,
+  options: {
+    pageRange: string;
+    outputFormat: string;
+    useLlm: boolean;
+    formatLines: boolean;
+    forceOcr: boolean;
+  }
+) {
+  try {
+    await storage.updateJob(jobId, { status: "processing" });
+
+    // Create temporary file
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const tempFile = path.join(tempDir, `${jobId}_${filename}`);
+    fs.writeFileSync(tempFile, fileBuffer);
+
+    // Initialize Adobe PDF Services
+    const credentials = PDFServicesSdk.Credentials
+      .servicePrincipalCredentialsBuilder()
+      .withClientId(ADOBE_CLIENT_ID!)
+      .withClientSecret(ADOBE_CLIENT_SECRET!)
+      .build();
+
+    const executionContext = PDFServicesSdk.ExecutionContext.create(credentials);
+    const extractPDFOperation = PDFServicesSdk.ExtractPDF.Operation.createNew();
+
+    const input = PDFServicesSdk.FileRef.createFromLocalFile(tempFile);
+    extractPDFOperation.setInput(input);
+
+    const options_adobe = PDFServicesSdk.ExtractPDF.options.ExtractPdfOptions.createNew();
+    options_adobe.addElementsToExtract(PDFServicesSdk.ExtractPDF.options.ExtractElementType.TEXT);
+    options_adobe.addElementsToExtract(PDFServicesSdk.ExtractPDF.options.ExtractElementType.TABLES);
+    options_adobe.addElementsToExtract(PDFServicesSdk.ExtractPDF.options.ExtractElementType.IMAGES);
+    extractPDFOperation.setOptions(options_adobe);
+
+    // Execute the operation
+    const result = await extractPDFOperation.execute(executionContext);
+    const resultPath = path.join(tempDir, `${jobId}_result.zip`);
+    await result.saveAsFile(resultPath);
+
+    // Process the result
+    const processedData = await processAdobeResults(resultPath, jobId);
+
+    // Update job with results
+    await storage.updateJob(jobId, {
+      status: "completed",
+      completedAt: new Date(),
+      jsonResult: processedData.json,
+      images: processedData.images,
+      questionsFound: processedData.questionsFound,
+      imagesExtracted: processedData.imagesExtracted,
+      tablesConverted: processedData.tablesConverted,
+    });
+
+    // Clean up temp files
+    fs.unlinkSync(tempFile);
+    fs.unlinkSync(resultPath);
+
+  } catch (error) {
+    console.error("Error processing document with Adobe:", error);
+    await storage.updateJob(jobId, {
+      status: "failed",
+      error: error instanceof Error ? error.message : "Unknown error",
+      completedAt: new Date(),
+    });
+  }
+}
+
+async function processAdobeResults(resultZipPath: string, jobId: number) {
+  // Extract ZIP file
+  const extractDir = path.join(process.cwd(), 'temp', `extracted_${jobId}`);
+  await extract(resultZipPath, { dir: extractDir });
+
+  // Read the JSON file
+  const jsonFiles = fs.readdirSync(extractDir).filter(f => f.endsWith('.json'));
+  if (jsonFiles.length === 0) {
+    throw new Error("No JSON file found in extraction results");
+  }
+
+  const jsonContent = JSON.parse(fs.readFileSync(path.join(extractDir, jsonFiles[0]), 'utf8'));
+  
+  // Process images
+  const images: Record<string, string> = {};
+  const figuresDir = path.join(extractDir, 'figures');
+  let imagesExtracted = 0;
+  
+  if (fs.existsSync(figuresDir)) {
+    const imageFiles = fs.readdirSync(figuresDir).filter(f => f.endsWith('.png'));
+    for (const imageFile of imageFiles) {
+      const imagePath = path.join(figuresDir, imageFile);
+      const imageBuffer = fs.readFileSync(imagePath);
+      const webpBuffer = await sharp(imageBuffer).webp().toBuffer();
+      images[imageFile.replace('.png', '.webp')] = webpBuffer.toString('base64');
+      imagesExtracted++;
+    }
+  }
+
+  // Parse questions from extracted text
+  const questions = await parseQuestionsFromAdobeContent(jsonContent);
+
+  // Clean up extraction directory
+  fs.rmSync(extractDir, { recursive: true, force: true });
+
+  return {
+    json: { questions },
+    images,
+    questionsFound: questions.length,
+    imagesExtracted,
+    tablesConverted: jsonContent.elements?.filter((e: any) => e.type === 'table')?.length || 0,
+  };
+}
+
+async function parseQuestionsFromAdobeContent(content: any): Promise<any[]> {
+  const questions: any[] = [];
+  
+  // Adobe PDF Extract provides structured content with elements
+  const elements = content.elements || [];
+  
+  let currentQuestion: any = null;
+  let questionCounter = 1;
+  
+  for (const element of elements) {
+    if (element.type === 'paragraph' || element.type === 'heading') {
+      const text = element.text || '';
+      
+      // Look for question patterns (numbered questions)
+      const questionMatch = text.match(/^(\d+)\.?\s*(.+)/);
+      if (questionMatch) {
+        // Save previous question if exists
+        if (currentQuestion) {
+          questions.push(currentQuestion);
+        }
+        
+        // Start new question
+        currentQuestion = {
+          id: `q${questionCounter++}`,
+          type: "math",
+          question_text: questionMatch[2].trim(),
+          difficulty: "medium",
+          topic: "mathematics",
+          images: [],
+          tables: [],
+          options: [],
+          correct_answer: null,
+          answer_format: "text"
+        };
+      } else if (currentQuestion && text.trim()) {
+        // Add to current question text
+        currentQuestion.question_text += " " + text.trim();
+      }
+    }
+    
+    // Handle tables
+    if (element.type === 'table' && currentQuestion) {
+      const tableHtml = convertTableToHtml(element);
+      currentQuestion.tables.push(tableHtml);
+    }
+    
+    // Handle figures/images
+    if (element.type === 'figure' && currentQuestion) {
+      const figurePath = element.path || `figure_${element.id || Math.random()}.png`;
+      currentQuestion.images.push(figurePath);
+    }
+  }
+  
+  // Add the last question
+  if (currentQuestion) {
+    questions.push(currentQuestion);
+  }
+  
+  return questions;
+}
+
+function convertTableToHtml(tableElement: any): string {
+  if (!tableElement.cells) return '';
+  
+  let html = '<table>';
+  const rows = tableElement.cells;
+  
+  for (const row of rows) {
+    html += '<tr>';
+    for (const cell of row) {
+      html += `<td>${cell.text || ''}</td>`;
+    }
+    html += '</tr>';
+  }
+  
+  html += '</table>';
+  return html;
 }
 
 async function processDocument(
