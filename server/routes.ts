@@ -15,6 +15,7 @@ import {
   MimeType, 
   ExtractPDFParams, 
   ExtractElementType, 
+  ExtractRenditionsElementType,
   ExtractPDFJob,
   ExtractPDFResult,
   StreamAsset
@@ -227,8 +228,10 @@ async function processDocumentWithAdobe(
     const params = new ExtractPDFParams({
       elementsToExtract: [
         ExtractElementType.TEXT,
-        ExtractElementType.TABLES,
-        ExtractElementType.FIGURES
+        ExtractElementType.TABLES
+      ],
+      elementsToExtractRenditions: [
+        ExtractRenditionsElementType.FIGURES
       ]
     });
 
