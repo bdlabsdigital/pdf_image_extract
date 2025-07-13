@@ -1,0 +1,11 @@
+1. What is 2 + 3?
+A) 4
+B) 5
+C) 6
+D) 7
+
+2. Calculate the area of a rectangle with length 5 and width 3.
+A) 8
+B) 15
+C) 20
+D) 25

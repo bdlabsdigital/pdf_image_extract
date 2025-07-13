@@ -9,7 +9,16 @@ import sharp from "sharp";
 
 import fs from "fs";
 import path from "path";
-import PDFServicesSdk from "@adobe/pdfservices-node-sdk";
+import { 
+  ServicePrincipalCredentials, 
+  PDFServices, 
+  MimeType, 
+  ExtractPDFParams, 
+  ExtractElementType, 
+  ExtractPDFJob,
+  ExtractPDFResult,
+  StreamAsset
+} from "@adobe/pdfservices-node-sdk";
 import extract from "extract-zip";
 
 // Extend Express Request type to include file
@@ -200,28 +209,50 @@ async function processDocumentWithAdobe(
     fs.writeFileSync(tempFile, fileBuffer);
 
     // Initialize Adobe PDF Services
-    const credentials = PDFServicesSdk.Credentials
-      .servicePrincipalCredentialsBuilder()
-      .withClientId(ADOBE_CLIENT_ID!)
-      .withClientSecret(ADOBE_CLIENT_SECRET!)
-      .build();
+    const credentials = new ServicePrincipalCredentials({
+      clientId: ADOBE_CLIENT_ID!,
+      clientSecret: ADOBE_CLIENT_SECRET!
+    });
 
-    const executionContext = PDFServicesSdk.ExecutionContext.create(credentials);
-    const extractPDFOperation = PDFServicesSdk.ExtractPDF.Operation.createNew();
+    const pdfServices = new PDFServices({ credentials });
 
-    const input = PDFServicesSdk.FileRef.createFromLocalFile(tempFile);
-    extractPDFOperation.setInput(input);
+    // Create parameters for extraction
+    const params = new ExtractPDFParams({
+      elementsToExtract: [
+        ExtractElementType.TEXT,
+        ExtractElementType.TABLES,
+        ExtractElementType.IMAGES
+      ]
+    });
 
-    const options_adobe = PDFServicesSdk.ExtractPDF.options.ExtractPdfOptions.createNew();
-    options_adobe.addElementsToExtract(PDFServicesSdk.ExtractPDF.options.ExtractElementType.TEXT);
-    options_adobe.addElementsToExtract(PDFServicesSdk.ExtractPDF.options.ExtractElementType.TABLES);
-    options_adobe.addElementsToExtract(PDFServicesSdk.ExtractPDF.options.ExtractElementType.IMAGES);
-    extractPDFOperation.setOptions(options_adobe);
+    // Create asset from file
+    const inputAsset = await pdfServices.upload({
+      readStream: fs.createReadStream(tempFile),
+      mimeType: MimeType.PDF
+    });
+
+    // Create the job
+    const job = new ExtractPDFJob({ inputAsset, params });
 
     // Execute the operation
-    const result = await extractPDFOperation.execute(executionContext);
+    const pollingURL = await pdfServices.submit({ job });
+    const pdfServicesResponse = await pdfServices.getJobResult({
+      pollingURL,
+      resultType: ExtractPDFResult
+    });
+
+    // Download the result
+    const resultAsset = pdfServicesResponse.result.resource;
     const resultPath = path.join(tempDir, `${jobId}_result.zip`);
-    await result.saveAsFile(resultPath);
+    const streamAsset = await pdfServices.getContent({ asset: resultAsset });
+    
+    // Save to file
+    const writeStream = fs.createWriteStream(resultPath);
+    streamAsset.readStream.pipe(writeStream);
+    await new Promise((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
 
     // Process the result
     const processedData = await processAdobeResults(resultPath, jobId);
