@@ -15,10 +15,7 @@ export function ProcessingStatus({ job }: ProcessingStatusProps) {
   
   const checkResultsMutation = useMutation({
     mutationFn: async (jobId: number) => {
-      return apiRequest({ 
-        url: `/api/jobs/${jobId}/check`, 
-        method: 'POST' 
-      });
+      return apiRequest('POST', `/api/jobs/${jobId}/check`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
