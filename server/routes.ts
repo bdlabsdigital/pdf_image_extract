@@ -33,219 +33,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 const ADOBE_CLIENT_ID = process.env.ADOBE_CLIENT_ID;
 const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET;
 
-// Intelligent image filtering function for math content
-async function isRelevantMathImage(imageBuffer: Buffer, metadata: sharp.Metadata): Promise<boolean> {
-  const { width = 0, height = 0 } = metadata;
-  
-  // Filter 1: Minimum size requirements for meaningful diagrams
-  if (width < 120 || height < 120) {
-    return false; // Too small to be meaningful math diagrams
-  }
-  
-  // Filter 2: Aspect ratio filtering (avoid very thin lines or decorative elements)
-  const aspectRatio = width / height;
-  if (aspectRatio > 8 || aspectRatio < 0.2) {
-    return false; // Likely lines, headers, or decorative elements
-  }
-  
-  // Filter 3: Area-based filtering - only large diagrams
-  const area = width * height;
-  if (area < 20000) {
-    return false; // Too small area for meaningful math diagrams
-  }
-  
-  // Filter 4: Analyze content complexity and characteristics
-  try {
-    // Convert to grayscale for analysis
-    const grayscaleBuffer = await sharp(imageBuffer)
-      .greyscale()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    
-    const pixels = new Uint8Array(grayscaleBuffer.data);
-    const totalPixels = pixels.length;
-    
-    // Calculate edge density (indicates complexity)
-    let edgeCount = 0;
-    const threshold = 25; // Edge detection threshold
-    
-    for (let i = 0; i < pixels.length - width; i++) {
-      if (Math.abs(pixels[i] - pixels[i + 1]) > threshold || 
-          Math.abs(pixels[i] - pixels[i + width]) > threshold) {
-        edgeCount++;
-      }
-    }
-    
-    const edgeDensity = edgeCount / totalPixels;
-    
-    // Calculate variance (indicates content diversity)
-    let sum = 0;
-    for (let i = 0; i < pixels.length; i++) {
-      sum += pixels[i];
-    }
-    const mean = sum / totalPixels;
-    
-    let variance = 0;
-    for (let i = 0; i < pixels.length; i++) {
-      variance += Math.pow(pixels[i] - mean, 2);
-    }
-    variance = variance / totalPixels;
-    
-    // Filter 5: Detect circular patterns (logos, stamps)
-    const isCircular = await detectCircularPattern(pixels, width, height);
-    if (isCircular) {
-      return false; // Reject circular logos and stamps
-    }
-    
-    // Filter 6: Detect table patterns (regular grid structures)
-    const isTable = await detectTablePattern(pixels, width, height);
-    if (isTable) {
-      return false; // Reject table images (should be HTML)
-    }
-    
-    // Filter 7: Detect simple text patterns (low complexity, high uniformity)
-    const isSimpleText = edgeDensity < 0.03 && variance < 150;
-    if (isSimpleText) {
-      return false; // Reject simple text elements
-    }
-    
-    // Filter 8: Detect grid/chart patterns (line graphs, bar charts)
-    const hasChartPattern = await detectChartPattern(pixels, width, height);
-    
-    // Filter 9: Only accept very specific mathematical content
-    const hasVeryHighComplexity = edgeDensity > 0.08 && variance > 500;
-    const hasExtremelyLargeArea = area >= 60000;
-    const hasGoodAspect = aspectRatio >= 0.5 && aspectRatio <= 2.5;
-    
-    // ULTRA STRICT: Only accept geometric tools and complex charts
-    if (hasExtremelyLargeArea && hasVeryHighComplexity && hasGoodAspect) {
-      return true; // Only very large, very complex geometric diagrams
-    }
-    
-    if (hasChartPattern && area >= 40000 && edgeDensity > 0.06) {
-      return true; // Line graphs and mathematical charts
-    }
-    
-    return false; // Reject everything else
-    
-  } catch (error) {
-    console.error('Error analyzing image complexity:', error);
-    // Fall back to very conservative filtering
-    return area >= 40000 && aspectRatio >= 0.4 && aspectRatio <= 3.0;
-  }
-}
-
-// Helper function to detect circular patterns (logos, stamps)
-async function detectCircularPattern(pixels: Uint8Array, width: number, height: number): Promise<boolean> {
-  const centerX = Math.floor(width / 2);
-  const centerY = Math.floor(height / 2);
-  const radius = Math.min(width, height) / 3;
-  
-  let circularEdges = 0;
-  let totalChecked = 0;
-  
-  // Check for circular edge patterns
-  for (let angle = 0; angle < 360; angle += 10) {
-    const x = centerX + Math.cos(angle * Math.PI / 180) * radius;
-    const y = centerY + Math.sin(angle * Math.PI / 180) * radius;
-    
-    if (x >= 0 && x < width && y >= 0 && y < height) {
-      const pixelIndex = Math.floor(y) * width + Math.floor(x);
-      if (pixelIndex < pixels.length - 1) {
-        const edgeStrength = Math.abs(pixels[pixelIndex] - pixels[pixelIndex + 1]);
-        if (edgeStrength > 30) {
-          circularEdges++;
-        }
-        totalChecked++;
-      }
-    }
-  }
-  
-  // If more than 60% of circular samples have edges, likely a circular logo
-  return totalChecked > 0 && (circularEdges / totalChecked) > 0.6;
-}
-
-// Helper function to detect table patterns (regular grid structures)
-async function detectTablePattern(pixels: Uint8Array, width: number, height: number): Promise<boolean> {
-  let horizontalLines = 0;
-  let verticalLines = 0;
-  
-  // Check for horizontal lines
-  for (let y = 0; y < height; y += 10) {
-    let lineStrength = 0;
-    for (let x = 0; x < width - 1; x++) {
-      const pixelIndex = y * width + x;
-      if (pixelIndex < pixels.length - 1) {
-        const edgeStrength = Math.abs(pixels[pixelIndex] - pixels[pixelIndex + 1]);
-        if (edgeStrength > 20) {
-          lineStrength++;
-        }
-      }
-    }
-    if (lineStrength > width * 0.3) {
-      horizontalLines++;
-    }
-  }
-  
-  // Check for vertical lines
-  for (let x = 0; x < width; x += 10) {
-    let lineStrength = 0;
-    for (let y = 0; y < height - 1; y++) {
-      const pixelIndex = y * width + x;
-      const belowIndex = (y + 1) * width + x;
-      if (belowIndex < pixels.length) {
-        const edgeStrength = Math.abs(pixels[pixelIndex] - pixels[belowIndex]);
-        if (edgeStrength > 20) {
-          lineStrength++;
-        }
-      }
-    }
-    if (lineStrength > height * 0.3) {
-      verticalLines++;
-    }
-  }
-  
-  // If we have multiple horizontal and vertical lines, likely a table
-  return horizontalLines >= 3 && verticalLines >= 2;
-}
-
-// Helper function to detect chart patterns (line graphs, bar charts)
-async function detectChartPattern(pixels: Uint8Array, width: number, height: number): Promise<boolean> {
-  let lineConnections = 0;
-  let curveSegments = 0;
-  
-  // Look for diagonal lines and curves (characteristic of line graphs)
-  for (let y = 1; y < height - 1; y += 5) {
-    for (let x = 1; x < width - 1; x += 5) {
-      const centerIndex = y * width + x;
-      if (centerIndex < pixels.length) {
-        const center = pixels[centerIndex];
-        const left = pixels[centerIndex - 1];
-        const right = pixels[centerIndex + 1];
-        const top = pixels[(y - 1) * width + x];
-        const bottom = pixels[(y + 1) * width + x];
-        
-        // Check for diagonal connections (line graph characteristics)
-        if (Math.abs(center - left) > 20 && Math.abs(center - right) > 20) {
-          lineConnections++;
-        }
-        
-        // Check for smooth curves
-        if (Math.abs(center - top) > 15 && Math.abs(center - bottom) > 15) {
-          curveSegments++;
-        }
-      }
-    }
-  }
-  
-  const totalSamples = Math.floor((height / 5) * (width / 5));
-  const lineRatio = lineConnections / totalSamples;
-  const curveRatio = curveSegments / totalSamples;
-  
-  // Chart patterns have connected lines and smooth curves
-  return lineRatio > 0.02 || curveRatio > 0.03;
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get recent processing jobs
   app.get("/api/jobs", async (req, res) => {
@@ -529,7 +316,7 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
   const images: Record<string, string> = {};
   let imagesExtracted = 0;
   
-  // Process figures directory with intelligent filtering
+  // Process figures directory
   const figuresDir = path.join(extractDir, 'figures');
   if (fs.existsSync(figuresDir)) {
     const imageFiles = fs.readdirSync(figuresDir).filter(f => f.endsWith('.png'));
@@ -537,16 +324,8 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const imagePath = path.join(figuresDir, imageFile);
       const imageBuffer = fs.readFileSync(imagePath);
       
-      // Filter out unwanted images using intelligent criteria
-      const imageInfo = await sharp(imageBuffer).metadata();
-      const isQualityImage = await isRelevantMathImage(imageBuffer, imageInfo);
-      
-      if (!isQualityImage) {
-        console.log(`Filtered out: ${imageFile} (not relevant math content)`);
-        continue;
-      }
-      
       // Enhanced image processing with better quality settings
+      const imageInfo = await sharp(imageBuffer).metadata();
       const webpBuffer = await sharp(imageBuffer)
         .extend({
           top: Math.max(20, Math.floor(imageInfo.height! * 0.05)),
@@ -586,16 +365,8 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const tablePath = path.join(tablesDir, tableImageFile);
       const tableBuffer = fs.readFileSync(tablePath);
       
-      // Filter out unwanted table images using intelligent criteria
-      const tableInfo = await sharp(tableBuffer).metadata();
-      const isQualityImage = await isRelevantMathImage(tableBuffer, tableInfo);
-      
-      if (!isQualityImage) {
-        console.log(`Filtered out: ${tableImageFile} (not relevant math content)`);
-        continue;
-      }
-      
       // Enhanced processing for table images
+      const tableInfo = await sharp(tableBuffer).metadata();
       const webpBuffer = await sharp(tableBuffer)
         .extend({
           top: Math.max(15, Math.floor(tableInfo.height! * 0.03)),
