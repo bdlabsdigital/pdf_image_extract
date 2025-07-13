@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertJobSchema, datalabResponseSchema, datalabResultSchema } from "@shared/schema";
@@ -9,6 +9,11 @@ import axios from "axios";
 import archiver from "archiver";
 import sharp from "sharp";
 import { Readable } from "stream";
+
+// Extend Express Request type to include file
+interface MulterRequest extends Request {
+  file?: Express.Multer.File;
+}
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -41,7 +46,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload PDF and start processing
-  app.post("/api/process", upload.single("file"), async (req, res) => {
+  app.post("/api/process", upload.single("file"), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -291,36 +296,60 @@ async function processResults(result: any) {
 async function parseQuestionsFromContent(content: string): Promise<any[]> {
   const questions: any[] = [];
   
-  // Simple question extraction logic
-  // This is a basic implementation - in production, you'd want more sophisticated parsing
-  const lines = content.split('\n');
+  // Parse the content based on your JSON structure
+  let lines: string[] = [];
+  
+  if (typeof content === 'string') {
+    lines = content.split('\n');
+  } else if (content && typeof content === 'object') {
+    // If content is already parsed JSON/object, extract text
+    if ((content as any).markdown) {
+      lines = (content as any).markdown.split('\n');
+    } else {
+      lines = JSON.stringify(content, null, 2).split('\n');
+    }
+  }
+
   let currentQuestion: any = null;
   let questionId = 1;
 
   for (const line of lines) {
     const trimmed = line.trim();
     
-    // Detect question start (basic heuristic)
-    if (trimmed.match(/^\d+\./)) {
+    // Detect question start - more flexible pattern matching
+    const questionMatch = trimmed.match(/^(\d+)\.?\s*(.+)$/);
+    if (questionMatch) {
       // Save previous question
       if (currentQuestion) {
         questions.push(currentQuestion);
       }
       
-      // Start new question
+      // Start new question with structure matching your JSON
       currentQuestion = {
         id: `q${questionId}`,
-        type: "unknown",
-        question_text: trimmed,
-        topic: "general",
-        difficulty: "medium",
+        text: questionMatch[2], // Question text without number
+        type: 0, // Default to MCQ type
+        mcqOptions: [], // Will be populated if options are found
+        correctAnswer: null,
+        marks: 1,
+        explanation: "",
+        topicId: "general",
         images: [],
         tables: [],
       };
       questionId++;
-    } else if (currentQuestion && trimmed.length > 0) {
-      // Continue building question text
-      currentQuestion.question_text += " " + trimmed;
+    } else if (currentQuestion) {
+      // Look for MCQ options (A), (B), (C), (D) or 1), 2), 3), 4)
+      const optionMatch = trimmed.match(/^[(\[]?([A-D]|[1-4])[)\]]?\s*(.+)$/);
+      if (optionMatch) {
+        currentQuestion.mcqOptions.push({
+          id: optionMatch[1],
+          text: optionMatch[2]
+        });
+      } else if (trimmed.length > 0 && !trimmed.startsWith('Answer:') && !trimmed.startsWith('Explanation:')) {
+        // Continue building question text
+        currentQuestion.text += " " + trimmed;
+      }
     }
   }
 

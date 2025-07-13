@@ -8,6 +8,14 @@ This is a full-stack application that processes PDF files to extract questions, 
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+- 2025-01-13: Simplified output format to single option: "JSON Questions + WebP Images"
+- 2025-01-13: Updated question parsing to match Singapore math paper JSON structure
+- 2025-01-13: Fixed TypeScript compilation errors for multer and archiver
+- 2025-01-13: Added DATALAB_API_KEY environment variable integration
+- 2025-01-13: Enhanced question structure to support MCQ options, explanations, and topic IDs
+
 ## System Architecture
 
 ### Frontend Architecture

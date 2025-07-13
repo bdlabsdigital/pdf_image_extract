@@ -22,6 +22,19 @@ export class MemStorage implements IStorage {
     const job: ProcessingJob = {
       ...insertJob,
       id,
+      status: insertJob.status || "pending",
+      error: insertJob.error || null,
+      requestId: insertJob.requestId || null,
+      pageRange: insertJob.pageRange || null,
+      outputFormat: insertJob.outputFormat || null,
+      useLlm: insertJob.useLlm || null,
+      formatLines: insertJob.formatLines || null,
+      forceOcr: insertJob.forceOcr || null,
+      questionsFound: insertJob.questionsFound || null,
+      imagesExtracted: insertJob.imagesExtracted || null,
+      tablesConverted: insertJob.tablesConverted || null,
+      jsonResult: insertJob.jsonResult || null,
+      images: insertJob.images || null,
       createdAt: new Date(),
       completedAt: null,
     };
@@ -44,7 +57,11 @@ export class MemStorage implements IStorage {
 
   async getRecentJobs(limit: number = 10): Promise<ProcessingJob[]> {
     return Array.from(this.jobs.values())
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      })
       .slice(0, limit);
   }
 

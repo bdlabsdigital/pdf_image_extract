@@ -42,9 +42,7 @@ export function ProcessingOptions({ options, onChange }: ProcessingOptionsProps)
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="json">JSON + HTML Tables</SelectItem>
-              <SelectItem value="json,html">JSON + HTML Tables</SelectItem>
-              <SelectItem value="json,markdown">JSON + Markdown Tables</SelectItem>
+              <SelectItem value="json">JSON Questions + WebP Images</SelectItem>
             </SelectContent>
           </Select>
         </div>

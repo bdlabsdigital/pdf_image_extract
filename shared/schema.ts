@@ -58,3 +58,27 @@ export const datalabResultSchema = z.object({
 
 export type DatalabResponse = z.infer<typeof datalabResponseSchema>;
 export type DatalabResult = z.infer<typeof datalabResultSchema>;
+
+// Question structure to match your JSON format
+export const questionSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  type: z.number(), // 0 = MCQ, 1 = Open-ended
+  mcqOptions: z.array(z.object({
+    id: z.string(),
+    text: z.string()
+  })).optional(),
+  correctAnswer: z.string().optional(),
+  marks: z.number().optional(),
+  explanation: z.string().optional(),
+  topicId: z.string().optional(),
+  images: z.array(z.string()).optional(),
+  tables: z.array(z.string()).optional(),
+  questionImageSvg: z.string().optional(),
+  konvaScript: z.string().optional(),
+  konvaWidth: z.number().optional(),
+  konvaHeight: z.number().optional(),
+  chartData: z.record(z.any()).optional(),
+});
+
+export type Question = z.infer<typeof questionSchema>;
