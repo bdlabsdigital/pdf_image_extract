@@ -109,18 +109,21 @@ async function isRelevantMathImage(imageBuffer: Buffer, metadata: sharp.Metadata
       return false; // Reject simple text elements
     }
     
-    // Filter 8: Only accept highly complex geometric/mathematical content
-    const hasHighComplexity = edgeDensity > 0.05 && variance > 300;
-    const hasVeryLargeArea = area >= 50000;
-    const hasGoodAspect = aspectRatio >= 0.4 && aspectRatio <= 3.0;
+    // Filter 8: Detect grid/chart patterns (line graphs, bar charts)
+    const hasChartPattern = await detectChartPattern(pixels, width, height);
     
-    // Very strict criteria - only accept geometric tools, complex diagrams
-    if (hasVeryLargeArea && hasHighComplexity && hasGoodAspect) {
-      return true; // Large, complex geometric diagrams like protractors
+    // Filter 9: Only accept very specific mathematical content
+    const hasVeryHighComplexity = edgeDensity > 0.08 && variance > 500;
+    const hasExtremelyLargeArea = area >= 60000;
+    const hasGoodAspect = aspectRatio >= 0.5 && aspectRatio <= 2.5;
+    
+    // ULTRA STRICT: Only accept geometric tools and complex charts
+    if (hasExtremelyLargeArea && hasVeryHighComplexity && hasGoodAspect) {
+      return true; // Only very large, very complex geometric diagrams
     }
     
-    if (area >= 40000 && edgeDensity > 0.08 && variance > 400) {
-      return true; // Very complex mathematical diagrams
+    if (hasChartPattern && area >= 40000 && edgeDensity > 0.06) {
+      return true; // Line graphs and mathematical charts
     }
     
     return false; // Reject everything else
@@ -204,6 +207,43 @@ async function detectTablePattern(pixels: Uint8Array, width: number, height: num
   
   // If we have multiple horizontal and vertical lines, likely a table
   return horizontalLines >= 3 && verticalLines >= 2;
+}
+
+// Helper function to detect chart patterns (line graphs, bar charts)
+async function detectChartPattern(pixels: Uint8Array, width: number, height: number): Promise<boolean> {
+  let lineConnections = 0;
+  let curveSegments = 0;
+  
+  // Look for diagonal lines and curves (characteristic of line graphs)
+  for (let y = 1; y < height - 1; y += 5) {
+    for (let x = 1; x < width - 1; x += 5) {
+      const centerIndex = y * width + x;
+      if (centerIndex < pixels.length) {
+        const center = pixels[centerIndex];
+        const left = pixels[centerIndex - 1];
+        const right = pixels[centerIndex + 1];
+        const top = pixels[(y - 1) * width + x];
+        const bottom = pixels[(y + 1) * width + x];
+        
+        // Check for diagonal connections (line graph characteristics)
+        if (Math.abs(center - left) > 20 && Math.abs(center - right) > 20) {
+          lineConnections++;
+        }
+        
+        // Check for smooth curves
+        if (Math.abs(center - top) > 15 && Math.abs(center - bottom) > 15) {
+          curveSegments++;
+        }
+      }
+    }
+  }
+  
+  const totalSamples = Math.floor((height / 5) * (width / 5));
+  const lineRatio = lineConnections / totalSamples;
+  const curveRatio = curveSegments / totalSamples;
+  
+  // Chart patterns have connected lines and smooth curves
+  return lineRatio > 0.02 || curveRatio > 0.03;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {

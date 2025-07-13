@@ -20,8 +20,10 @@ Preferred communication style: Simple, everyday language.
 - 2025-01-13: **Content Analysis**: Added edge density and variance analysis to identify meaningful mathematical content
 - 2025-01-13: **Quality Optimization**: Enhanced image processing with padding, sharpening, and gamma correction
 - 2025-01-13: **Pattern Recognition**: Added circular pattern detection for logos and table pattern detection for grid structures
-- 2025-01-13: **Strict Filtering Criteria**: Only accept images with area >= 20,000 pixels, high complexity, and geometric characteristics
+- 2025-01-13: **Chart Pattern Detection**: Added specialized detection for line graphs and mathematical charts
+- 2025-01-13: **Extreme Filtering Criteria**: Only accept images with area >= 60,000 pixels, ultra-high complexity (edge density > 0.08, variance > 500)
 - 2025-01-13: **Content Type Exclusion**: Automatically reject logos, tables, answer sections, and simple text elements
+- 2025-01-13: **Dual Acceptance Path**: Accept either geometric tools (protractors) or mathematical charts (line graphs)
 - 2025-01-13: **API Credit Conservation**: Removed continuous server-side polling to prevent credit wastage
 - 2025-01-13: **Manual Result Checking**: Added "Check Results" button for on-demand status updates
 - 2025-01-13: **Reduced Frontend Polling**: Changed from 2-second to 10-second intervals
