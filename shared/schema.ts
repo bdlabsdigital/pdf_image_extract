@@ -35,25 +35,25 @@ export type ProcessingJob = typeof processingJobs.$inferSelect;
 // Types for API responses
 export const datalabResponseSchema = z.object({
   success: z.boolean(),
-  error: z.string().optional(),
+  error: z.string().nullable().optional(),
   request_id: z.string(),
   request_check_url: z.string(),
-  versions: z.record(z.any()).optional(),
+  versions: z.record(z.any()).nullable().optional(),
 });
 
 export const datalabResultSchema = z.object({
   status: z.string(),
-  output_format: z.string().optional(),
-  json: z.record(z.any()).optional(),
-  markdown: z.string().optional(),
-  html: z.string().optional(),
-  images: z.record(z.string()).optional(),
-  metadata: z.record(z.any()).optional(),
+  output_format: z.string().nullable().optional(),
+  json: z.record(z.any()).nullable().optional(),
+  markdown: z.string().nullable().optional(),
+  html: z.string().nullable().optional(),
+  images: z.record(z.string()).nullable().optional(),
+  metadata: z.record(z.any()).nullable().optional(),
   success: z.boolean(),
-  error: z.string().optional(),
-  page_count: z.number().optional(),
-  total_cost: z.number().optional(),
-  runtime: z.number().optional(),
+  error: z.string().nullable().optional(),
+  page_count: z.number().nullable().optional(),
+  total_cost: z.number().nullable().optional(),
+  runtime: z.number().nullable().optional(),
 });
 
 export type DatalabResponse = z.infer<typeof datalabResponseSchema>;

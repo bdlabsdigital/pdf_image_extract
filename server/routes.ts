@@ -197,7 +197,16 @@ async function processDocument(
       },
     });
 
-    const submitResult = datalabResponseSchema.parse(submitResponse.data);
+    console.log("Raw Datalab response:", JSON.stringify(submitResponse.data, null, 2));
+
+    let submitResult;
+    try {
+      submitResult = datalabResponseSchema.parse(submitResponse.data);
+    } catch (validationError: any) {
+      console.error("Schema validation failed:", validationError);
+      console.error("Raw response data:", submitResponse.data);
+      throw new Error(`Invalid API response format: ${validationError.message}`);
+    }
     
     if (!submitResult.success) {
       throw new Error(submitResult.error || "Failed to submit to Datalab API");
@@ -219,7 +228,16 @@ async function processDocument(
           },
         });
 
-        const result = datalabResultSchema.parse(resultResponse.data);
+        console.log("Raw result response:", JSON.stringify(resultResponse.data, null, 2));
+
+        let result;
+        try {
+          result = datalabResultSchema.parse(resultResponse.data);
+        } catch (validationError: any) {
+          console.error("Result validation failed:", validationError);
+          console.error("Raw result data:", resultResponse.data);
+          throw new Error(`Invalid result format: ${validationError.message}`);
+        }
         
         if (result.status === "completed" && result.success) {
           // Process the results
