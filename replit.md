@@ -10,6 +10,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- 2025-01-13: **Migrated to Adobe PDF Services**: Replaced Datalab API with Adobe PDF Extract API for better reliability
+- 2025-01-13: **Free API Alternative**: Adobe provides 500 free document extractions per month
+- 2025-01-13: **Updated Frontend**: Removed Datalab API references and updated UI to show Adobe PDF Services
+- 2025-01-13: **Synchronous Processing**: Adobe PDF Services processes documents synchronously (no polling needed)
+- 2025-01-13: **Enhanced Extraction**: Adobe provides better text, table, and image extraction capabilities
 - 2025-01-13: **API Credit Conservation**: Removed continuous server-side polling to prevent credit wastage
 - 2025-01-13: **Manual Result Checking**: Added "Check Results" button for on-demand status updates
 - 2025-01-13: **Reduced Frontend Polling**: Changed from 2-second to 10-second intervals
@@ -20,7 +25,6 @@ Preferred communication style: Simple, everyday language.
 - 2025-01-13: Simplified output format to single option: "JSON Questions + WebP Images"
 - 2025-01-13: Updated question parsing to match Singapore math paper JSON structure
 - 2025-01-13: Fixed TypeScript compilation errors for multer and archiver
-- 2025-01-13: Added DATALAB_API_KEY environment variable integration
 - 2025-01-13: Enhanced question structure to support MCQ options, explanations, and topic IDs
 
 ## System Architecture
@@ -52,7 +56,7 @@ Preferred communication style: Simple, everyday language.
   - `GET /api/jobs` - Fetch recent processing jobs
   - `GET /api/jobs/:id` - Get specific job details
   - `POST /api/process` - Upload PDF and start processing
-- **External Integration**: Datalab API for PDF analysis and content extraction
+- **External Integration**: Adobe PDF Extract API for PDF analysis and content extraction
 
 ### Frontend Components
 - **File Upload**: Drag-and-drop interface with file validation
@@ -86,7 +90,7 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns for date formatting
 
 ### Third-Party Services
-- **Datalab API**: External service for PDF content extraction
+- **Adobe PDF Extract API**: External service for PDF content extraction (500 free documents/month)
 - **Neon Database**: Serverless PostgreSQL hosting
 
 ## Deployment Strategy
@@ -102,7 +106,7 @@ Preferred communication style: Simple, everyday language.
   - Backend: esbuild compilation to ESM format
 - **Static Assets**: Frontend served from Express with fallback routing
 - **Database**: Neon PostgreSQL with connection pooling
-- **Environment Variables**: DATABASE_URL and DATALAB_API_KEY required
+- **Environment Variables**: DATABASE_URL, ADOBE_CLIENT_ID, and ADOBE_CLIENT_SECRET required
 
 ### Architecture Decisions
 

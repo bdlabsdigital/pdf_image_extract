@@ -49,37 +49,8 @@ export function ProcessingOptions({ options, onChange }: ProcessingOptionsProps)
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="useLlm"
-            checked={options.useLlm}
-            onCheckedChange={(checked) => handleChange("useLlm", checked)}
-          />
-          <Label htmlFor="useLlm" className="text-sm font-medium">
-            Use LLM Enhancement
-          </Label>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="formatLines"
-            checked={options.formatLines}
-            onCheckedChange={(checked) => handleChange("formatLines", checked)}
-          />
-          <Label htmlFor="formatLines" className="text-sm font-medium">
-            Format Math Lines
-          </Label>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="forceOcr"
-            checked={options.forceOcr}
-            onCheckedChange={(checked) => handleChange("forceOcr", checked)}
-          />
-          <Label htmlFor="forceOcr" className="text-sm font-medium">
-            Force OCR
-          </Label>
+        <div className="text-sm text-gray-600 p-3 bg-blue-50 rounded-md">
+          <strong>Adobe PDF Services</strong> automatically extracts text, images, and tables from PDF documents. Processing options are optimized for Singapore math papers.
         </div>
       </div>
     </div>

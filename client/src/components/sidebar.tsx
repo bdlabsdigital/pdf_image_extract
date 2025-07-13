@@ -13,8 +13,8 @@ interface SidebarProps {
 
 export function Sidebar({ healthData }: SidebarProps) {
   const [showApiKey, setShowApiKey] = useState(false);
-  const apiKey = "yNIcatEQ_AI3roU68t3GWecVSY6k48FpvuOUVTCTgT4";
-  const displayKey = showApiKey ? apiKey : `${apiKey.slice(0, 12)}...`;
+  const apiKey = "Adobe PDF Services configured";
+  const displayKey = showApiKey ? apiKey : "Adobe PDF Services";
 
   const { data: recentJobs } = useQuery({
     queryKey: ["/api/jobs"],
@@ -46,31 +46,31 @@ export function Sidebar({ healthData }: SidebarProps) {
         <CardContent>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="apiKey">Datalab API Key</Label>
+              <Label htmlFor="apiKey">Adobe PDF Services</Label>
               <div className="flex items-center space-x-2">
                 <Input
                   id="apiKey"
-                  type={showApiKey ? "text" : "password"}
+                  type="text"
                   value={displayKey}
                   readOnly
                   className="font-mono text-sm"
                 />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </Button>
+                <div className="flex items-center space-x-1">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-600">Ready</span>
+                </div>
               </div>
             </div>
 
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">API Status</span>
-                <span className={`font-medium ${healthData?.status === "connected" ? "text-green-600" : "text-red-600"}`}>
-                  {healthData?.status === "connected" ? "Connected" : "Disconnected"}
+                <span className="text-gray-500">Service Status</span>
+                <span className={`font-medium ${healthData?.adobe?.status === "ok" ? "text-green-600" : "text-red-600"}`}>
+                  {healthData?.adobe?.status === "ok" ? "Ready" : "Not Ready"}
                 </span>
+              </div>
+              <div className="mt-2 text-xs text-gray-400">
+                {healthData?.adobe?.message || "Adobe PDF Services"}
               </div>
             </div>
           </div>
