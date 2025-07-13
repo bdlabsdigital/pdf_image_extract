@@ -67,6 +67,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
+      // Validate file type
+      if (!req.file.originalname.toLowerCase().endsWith('.pdf')) {
+        return res.status(400).json({ error: "Only PDF files are supported. Please upload a PDF file." });
+      }
+
       const {
         pageRange,
         outputFormat = "json",
@@ -196,6 +201,8 @@ async function processDocumentWithAdobe(
     forceOcr: boolean;
   }
 ) {
+  let readStream: fs.ReadStream | null = null;
+  
   try {
     await storage.updateJob(jobId, { status: "processing" });
 
@@ -221,13 +228,14 @@ async function processDocumentWithAdobe(
       elementsToExtract: [
         ExtractElementType.TEXT,
         ExtractElementType.TABLES,
-        ExtractElementType.IMAGES
+        ExtractElementType.FIGURES
       ]
     });
 
     // Create asset from file
+    readStream = fs.createReadStream(tempFile);
     const inputAsset = await pdfServices.upload({
-      readStream: fs.createReadStream(tempFile),
+      readStream,
       mimeType: MimeType.PDF
     });
 
@@ -243,12 +251,14 @@ async function processDocumentWithAdobe(
 
     // Download the result
     const resultAsset = pdfServicesResponse.result.resource;
-    const resultPath = path.join(tempDir, `${jobId}_result.zip`);
     const streamAsset = await pdfServices.getContent({ asset: resultAsset });
     
     // Save to file
+    const resultPath = path.join(tempDir, `${jobId}_result.zip`);
     const writeStream = fs.createWriteStream(resultPath);
     streamAsset.readStream.pipe(writeStream);
+    
+    // Wait for write to complete
     await new Promise((resolve, reject) => {
       writeStream.on('finish', resolve);
       writeStream.on('error', reject);
@@ -279,6 +289,9 @@ async function processDocumentWithAdobe(
       error: error instanceof Error ? error.message : "Unknown error",
       completedAt: new Date(),
     });
+  } finally {
+    // Clean up the read stream
+    readStream?.destroy();
   }
 }
 
