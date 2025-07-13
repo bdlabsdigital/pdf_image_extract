@@ -324,28 +324,52 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const imagePath = path.join(figuresDir, imageFile);
       const imageBuffer = fs.readFileSync(imagePath);
       
-      // Enhanced image processing with better quality settings
+      // Enhanced image processing with upscaling for better quality
       const imageInfo = await sharp(imageBuffer).metadata();
+      console.log(`Original image size: ${imageInfo.width}x${imageInfo.height} (${imageFile})`);
+      
+      // Calculate upscale factor based on image size
+      const minDesiredWidth = 800;
+      const minDesiredHeight = 600;
+      const scaleFactorX = imageInfo.width! < minDesiredWidth ? minDesiredWidth / imageInfo.width! : 1;
+      const scaleFactorY = imageInfo.height! < minDesiredHeight ? minDesiredHeight / imageInfo.height! : 1;
+      const scaleFactor = Math.max(scaleFactorX, scaleFactorY, 2); // Minimum 2x upscale
+      
+      const targetWidth = Math.round(imageInfo.width! * scaleFactor);
+      const targetHeight = Math.round(imageInfo.height! * scaleFactor);
+      
+      console.log(`Upscaling to: ${targetWidth}x${targetHeight} (${scaleFactor}x)`);
+      
       const webpBuffer = await sharp(imageBuffer)
+        .resize(targetWidth, targetHeight, {
+          kernel: sharp.kernel.lanczos3,
+          withoutEnlargement: false,
+          fastShrinkOnLoad: false
+        })
         .extend({
-          top: Math.max(20, Math.floor(imageInfo.height! * 0.05)),
-          bottom: Math.max(20, Math.floor(imageInfo.height! * 0.05)),
-          left: Math.max(20, Math.floor(imageInfo.width! * 0.05)),
-          right: Math.max(20, Math.floor(imageInfo.width! * 0.05)),
+          top: Math.max(30, Math.floor(targetHeight * 0.03)),
+          bottom: Math.max(30, Math.floor(targetHeight * 0.03)),
+          left: Math.max(30, Math.floor(targetWidth * 0.03)),
+          right: Math.max(30, Math.floor(targetWidth * 0.03)),
           background: { r: 255, g: 255, b: 255, alpha: 1 }
         })
         .sharpen({
-          sigma: 0.5,
+          sigma: 1.0,
           m1: 1.0,
           m2: 2.0,
           x1: 2.0,
           y2: 10.0,
           y3: 20.0
         })
-        .gamma(1.1)
+        .modulate({
+          brightness: 1.05,
+          saturation: 1.1,
+          hue: 0
+        })
+        .gamma(1.2)
         .normalize()
         .webp({ 
-          quality: 95,
+          quality: 98,
           effort: 6,
           smartSubsample: false,
           nearLossless: true
@@ -365,28 +389,52 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const tablePath = path.join(tablesDir, tableImageFile);
       const tableBuffer = fs.readFileSync(tablePath);
       
-      // Enhanced processing for table images
+      // Enhanced processing for table images with upscaling
       const tableInfo = await sharp(tableBuffer).metadata();
+      console.log(`Original table image size: ${tableInfo.width}x${tableInfo.height} (${tableImageFile})`);
+      
+      // Calculate upscale factor for table images
+      const minDesiredWidth = 1000;
+      const minDesiredHeight = 600;
+      const scaleFactorX = tableInfo.width! < minDesiredWidth ? minDesiredWidth / tableInfo.width! : 1;
+      const scaleFactorY = tableInfo.height! < minDesiredHeight ? minDesiredHeight / tableInfo.height! : 1;
+      const scaleFactor = Math.max(scaleFactorX, scaleFactorY, 2); // Minimum 2x upscale
+      
+      const targetWidth = Math.round(tableInfo.width! * scaleFactor);
+      const targetHeight = Math.round(tableInfo.height! * scaleFactor);
+      
+      console.log(`Upscaling table to: ${targetWidth}x${targetHeight} (${scaleFactor}x)`);
+      
       const webpBuffer = await sharp(tableBuffer)
+        .resize(targetWidth, targetHeight, {
+          kernel: sharp.kernel.lanczos3,
+          withoutEnlargement: false,
+          fastShrinkOnLoad: false
+        })
         .extend({
-          top: Math.max(15, Math.floor(tableInfo.height! * 0.03)),
-          bottom: Math.max(15, Math.floor(tableInfo.height! * 0.03)),
-          left: Math.max(15, Math.floor(tableInfo.width! * 0.03)),
-          right: Math.max(15, Math.floor(tableInfo.width! * 0.03)),
+          top: Math.max(25, Math.floor(targetHeight * 0.02)),
+          bottom: Math.max(25, Math.floor(targetHeight * 0.02)),
+          left: Math.max(25, Math.floor(targetWidth * 0.02)),
+          right: Math.max(25, Math.floor(targetWidth * 0.02)),
           background: { r: 255, g: 255, b: 255, alpha: 1 }
         })
         .sharpen({
-          sigma: 0.5,
+          sigma: 1.0,
           m1: 1.0,
           m2: 2.0,
           x1: 2.0,
           y2: 10.0,
           y3: 20.0
         })
-        .gamma(1.1)
+        .modulate({
+          brightness: 1.05,
+          saturation: 1.1,
+          hue: 0
+        })
+        .gamma(1.2)
         .normalize()
         .webp({ 
-          quality: 95,
+          quality: 98,
           effort: 6,
           smartSubsample: false,
           nearLossless: true

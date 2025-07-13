@@ -12,6 +12,9 @@ Preferred communication style: Simple, everyday language.
 
 - 2025-01-13: **Migrated to Adobe PDF Services**: Replaced Datalab API with Adobe PDF Extract API for better reliability
 - 2025-01-13: **Fixed Adobe PDF Services Integration**: Resolved "elementsToExtract not supported" error by using correct SDK parameters
+- 2025-01-13: **Enhanced Image Quality**: Implemented intelligent upscaling with minimum 2x resolution boost and advanced Sharp.js processing
+- 2025-01-13: **Smart Resolution Detection**: Added automatic detection of low-resolution images and adaptive upscaling to minimum 800x600px
+- 2025-01-13: **Advanced Image Processing**: Applied Lanczos3 kernel for high-quality resizing, sharpening, and gamma correction
 - 2025-01-13: **Free API Alternative**: Adobe provides 500 free document extractions per month
 - 2025-01-13: **Updated Frontend**: Removed Datalab API references and updated UI to show Adobe PDF Services
 - 2025-01-13: **Synchronous Processing**: Adobe PDF Services processes documents synchronously (no polling needed)
