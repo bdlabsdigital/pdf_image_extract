@@ -224,14 +224,15 @@ async function processDocumentWithAdobe(
 
     const pdfServices = new PDFServices({ credentials });
 
-    // Create parameters for extraction
+    // Create parameters for extraction with improved settings
     const params = new ExtractPDFParams({
       elementsToExtract: [
         ExtractElementType.TEXT,
         ExtractElementType.TABLES
       ],
       elementsToExtractRenditions: [
-        ExtractRenditionsElementType.FIGURES
+        ExtractRenditionsElementType.FIGURES,
+        ExtractRenditionsElementType.TABLES
       ]
     });
 
@@ -311,18 +312,88 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
 
   const jsonContent = JSON.parse(fs.readFileSync(path.join(extractDir, jsonFiles[0]), 'utf8'));
   
-  // Process images
+  // Process images with enhanced quality settings
   const images: Record<string, string> = {};
-  const figuresDir = path.join(extractDir, 'figures');
   let imagesExtracted = 0;
   
+  // Process figures directory
+  const figuresDir = path.join(extractDir, 'figures');
   if (fs.existsSync(figuresDir)) {
     const imageFiles = fs.readdirSync(figuresDir).filter(f => f.endsWith('.png'));
     for (const imageFile of imageFiles) {
       const imagePath = path.join(figuresDir, imageFile);
       const imageBuffer = fs.readFileSync(imagePath);
-      const webpBuffer = await sharp(imageBuffer).webp().toBuffer();
+      
+      // Enhanced image processing with better quality settings
+      const imageInfo = await sharp(imageBuffer).metadata();
+      const webpBuffer = await sharp(imageBuffer)
+        .extend({
+          top: Math.max(20, Math.floor(imageInfo.height! * 0.05)),
+          bottom: Math.max(20, Math.floor(imageInfo.height! * 0.05)),
+          left: Math.max(20, Math.floor(imageInfo.width! * 0.05)),
+          right: Math.max(20, Math.floor(imageInfo.width! * 0.05)),
+          background: { r: 255, g: 255, b: 255, alpha: 1 }
+        })
+        .sharpen({
+          sigma: 0.5,
+          m1: 1.0,
+          m2: 2.0,
+          x1: 2.0,
+          y2: 10.0,
+          y3: 20.0
+        })
+        .gamma(1.1)
+        .normalize()
+        .webp({ 
+          quality: 95,
+          effort: 6,
+          smartSubsample: false,
+          nearLossless: true
+        })
+        .toBuffer();
+      
       images[imageFile.replace('.png', '.webp')] = webpBuffer.toString('base64');
+      imagesExtracted++;
+    }
+  }
+  
+  // Also process table renditions which might contain visual elements
+  const tablesDir = path.join(extractDir, 'tables');
+  if (fs.existsSync(tablesDir)) {
+    const tableImageFiles = fs.readdirSync(tablesDir).filter(f => f.endsWith('.png'));
+    for (const tableImageFile of tableImageFiles) {
+      const tablePath = path.join(tablesDir, tableImageFile);
+      const tableBuffer = fs.readFileSync(tablePath);
+      
+      // Enhanced processing for table images
+      const tableInfo = await sharp(tableBuffer).metadata();
+      const webpBuffer = await sharp(tableBuffer)
+        .extend({
+          top: Math.max(15, Math.floor(tableInfo.height! * 0.03)),
+          bottom: Math.max(15, Math.floor(tableInfo.height! * 0.03)),
+          left: Math.max(15, Math.floor(tableInfo.width! * 0.03)),
+          right: Math.max(15, Math.floor(tableInfo.width! * 0.03)),
+          background: { r: 255, g: 255, b: 255, alpha: 1 }
+        })
+        .sharpen({
+          sigma: 0.5,
+          m1: 1.0,
+          m2: 2.0,
+          x1: 2.0,
+          y2: 10.0,
+          y3: 20.0
+        })
+        .gamma(1.1)
+        .normalize()
+        .webp({ 
+          quality: 95,
+          effort: 6,
+          smartSubsample: false,
+          nearLossless: true
+        })
+        .toBuffer();
+      
+      images[tableImageFile.replace('.png', '.webp')] = webpBuffer.toString('base64');
       imagesExtracted++;
     }
   }
