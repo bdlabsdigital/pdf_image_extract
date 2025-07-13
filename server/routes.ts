@@ -33,6 +33,91 @@ const upload = multer({ storage: multer.memoryStorage() });
 const ADOBE_CLIENT_ID = process.env.ADOBE_CLIENT_ID;
 const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET;
 
+// Intelligent image filtering function for math content
+async function isRelevantMathImage(imageBuffer: Buffer, metadata: sharp.Metadata): Promise<boolean> {
+  const { width = 0, height = 0 } = metadata;
+  
+  // Filter 1: Minimum size requirements
+  if (width < 80 || height < 60) {
+    return false; // Too small to be meaningful math content
+  }
+  
+  // Filter 2: Aspect ratio filtering (avoid very thin lines or decorative elements)
+  const aspectRatio = width / height;
+  if (aspectRatio > 15 || aspectRatio < 0.1) {
+    return false; // Likely lines, headers, or decorative elements
+  }
+  
+  // Filter 3: Area-based filtering
+  const area = width * height;
+  if (area < 5000) {
+    return false; // Too small area for meaningful math diagrams
+  }
+  
+  // Filter 4: Analyze content complexity and characteristics
+  try {
+    // Convert to grayscale for analysis
+    const grayscaleBuffer = await sharp(imageBuffer)
+      .greyscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    
+    const pixels = new Uint8Array(grayscaleBuffer.data);
+    const totalPixels = pixels.length;
+    
+    // Calculate edge density (indicates complexity)
+    let edgeCount = 0;
+    const threshold = 30; // Edge detection threshold
+    
+    for (let i = 0; i < pixels.length - width; i++) {
+      if (Math.abs(pixels[i] - pixels[i + 1]) > threshold || 
+          Math.abs(pixels[i] - pixels[i + width]) > threshold) {
+        edgeCount++;
+      }
+    }
+    
+    const edgeDensity = edgeCount / totalPixels;
+    
+    // Calculate variance (indicates content diversity)
+    let sum = 0;
+    for (let i = 0; i < pixels.length; i++) {
+      sum += pixels[i];
+    }
+    const mean = sum / totalPixels;
+    
+    let variance = 0;
+    for (let i = 0; i < pixels.length; i++) {
+      variance += Math.pow(pixels[i] - mean, 2);
+    }
+    variance = variance / totalPixels;
+    
+    // Filter 5: Content analysis thresholds
+    const hasGoodComplexity = edgeDensity > 0.02 && variance > 100;
+    const hasGoodSize = area >= 8000 && (width >= 120 || height >= 120);
+    const hasGoodAspect = aspectRatio >= 0.3 && aspectRatio <= 4.0;
+    
+    // Filter 6: Prioritize larger, more complex images
+    if (area >= 25000 && hasGoodAspect) {
+      return true; // Large images with good aspect ratio
+    }
+    
+    if (area >= 15000 && hasGoodComplexity && hasGoodAspect) {
+      return true; // Medium-large images with good complexity
+    }
+    
+    if (area >= 10000 && edgeDensity > 0.05 && variance > 200) {
+      return true; // Medium images with high complexity
+    }
+    
+    return false;
+    
+  } catch (error) {
+    console.error('Error analyzing image complexity:', error);
+    // Fall back to conservative size-based filtering
+    return area >= 15000 && aspectRatio >= 0.3 && aspectRatio <= 4.0;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get recent processing jobs
   app.get("/api/jobs", async (req, res) => {
@@ -316,7 +401,7 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
   const images: Record<string, string> = {};
   let imagesExtracted = 0;
   
-  // Process figures directory
+  // Process figures directory with intelligent filtering
   const figuresDir = path.join(extractDir, 'figures');
   if (fs.existsSync(figuresDir)) {
     const imageFiles = fs.readdirSync(figuresDir).filter(f => f.endsWith('.png'));
@@ -324,8 +409,16 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const imagePath = path.join(figuresDir, imageFile);
       const imageBuffer = fs.readFileSync(imagePath);
       
-      // Enhanced image processing with better quality settings
+      // Filter out unwanted images using intelligent criteria
       const imageInfo = await sharp(imageBuffer).metadata();
+      const isQualityImage = await isRelevantMathImage(imageBuffer, imageInfo);
+      
+      if (!isQualityImage) {
+        console.log(`Filtered out: ${imageFile} (not relevant math content)`);
+        continue;
+      }
+      
+      // Enhanced image processing with better quality settings
       const webpBuffer = await sharp(imageBuffer)
         .extend({
           top: Math.max(20, Math.floor(imageInfo.height! * 0.05)),
@@ -365,8 +458,16 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const tablePath = path.join(tablesDir, tableImageFile);
       const tableBuffer = fs.readFileSync(tablePath);
       
-      // Enhanced processing for table images
+      // Filter out unwanted table images using intelligent criteria
       const tableInfo = await sharp(tableBuffer).metadata();
+      const isQualityImage = await isRelevantMathImage(tableBuffer, tableInfo);
+      
+      if (!isQualityImage) {
+        console.log(`Filtered out: ${tableImageFile} (not relevant math content)`);
+        continue;
+      }
+      
+      // Enhanced processing for table images
       const webpBuffer = await sharp(tableBuffer)
         .extend({
           top: Math.max(15, Math.floor(tableInfo.height! * 0.03)),
