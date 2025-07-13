@@ -37,20 +37,20 @@ const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET;
 async function isRelevantMathImage(imageBuffer: Buffer, metadata: sharp.Metadata): Promise<boolean> {
   const { width = 0, height = 0 } = metadata;
   
-  // Filter 1: Minimum size requirements
-  if (width < 80 || height < 60) {
-    return false; // Too small to be meaningful math content
+  // Filter 1: Minimum size requirements for meaningful diagrams
+  if (width < 120 || height < 120) {
+    return false; // Too small to be meaningful math diagrams
   }
   
   // Filter 2: Aspect ratio filtering (avoid very thin lines or decorative elements)
   const aspectRatio = width / height;
-  if (aspectRatio > 15 || aspectRatio < 0.1) {
+  if (aspectRatio > 8 || aspectRatio < 0.2) {
     return false; // Likely lines, headers, or decorative elements
   }
   
-  // Filter 3: Area-based filtering
+  // Filter 3: Area-based filtering - only large diagrams
   const area = width * height;
-  if (area < 5000) {
+  if (area < 20000) {
     return false; // Too small area for meaningful math diagrams
   }
   
@@ -67,7 +67,7 @@ async function isRelevantMathImage(imageBuffer: Buffer, metadata: sharp.Metadata
     
     // Calculate edge density (indicates complexity)
     let edgeCount = 0;
-    const threshold = 30; // Edge detection threshold
+    const threshold = 25; // Edge detection threshold
     
     for (let i = 0; i < pixels.length - width; i++) {
       if (Math.abs(pixels[i] - pixels[i + 1]) > threshold || 
@@ -91,31 +91,119 @@ async function isRelevantMathImage(imageBuffer: Buffer, metadata: sharp.Metadata
     }
     variance = variance / totalPixels;
     
-    // Filter 5: Content analysis thresholds
-    const hasGoodComplexity = edgeDensity > 0.02 && variance > 100;
-    const hasGoodSize = area >= 8000 && (width >= 120 || height >= 120);
-    const hasGoodAspect = aspectRatio >= 0.3 && aspectRatio <= 4.0;
-    
-    // Filter 6: Prioritize larger, more complex images
-    if (area >= 25000 && hasGoodAspect) {
-      return true; // Large images with good aspect ratio
+    // Filter 5: Detect circular patterns (logos, stamps)
+    const isCircular = await detectCircularPattern(pixels, width, height);
+    if (isCircular) {
+      return false; // Reject circular logos and stamps
     }
     
-    if (area >= 15000 && hasGoodComplexity && hasGoodAspect) {
-      return true; // Medium-large images with good complexity
+    // Filter 6: Detect table patterns (regular grid structures)
+    const isTable = await detectTablePattern(pixels, width, height);
+    if (isTable) {
+      return false; // Reject table images (should be HTML)
     }
     
-    if (area >= 10000 && edgeDensity > 0.05 && variance > 200) {
-      return true; // Medium images with high complexity
+    // Filter 7: Detect simple text patterns (low complexity, high uniformity)
+    const isSimpleText = edgeDensity < 0.03 && variance < 150;
+    if (isSimpleText) {
+      return false; // Reject simple text elements
     }
     
-    return false;
+    // Filter 8: Only accept highly complex geometric/mathematical content
+    const hasHighComplexity = edgeDensity > 0.05 && variance > 300;
+    const hasVeryLargeArea = area >= 50000;
+    const hasGoodAspect = aspectRatio >= 0.4 && aspectRatio <= 3.0;
+    
+    // Very strict criteria - only accept geometric tools, complex diagrams
+    if (hasVeryLargeArea && hasHighComplexity && hasGoodAspect) {
+      return true; // Large, complex geometric diagrams like protractors
+    }
+    
+    if (area >= 40000 && edgeDensity > 0.08 && variance > 400) {
+      return true; // Very complex mathematical diagrams
+    }
+    
+    return false; // Reject everything else
     
   } catch (error) {
     console.error('Error analyzing image complexity:', error);
-    // Fall back to conservative size-based filtering
-    return area >= 15000 && aspectRatio >= 0.3 && aspectRatio <= 4.0;
+    // Fall back to very conservative filtering
+    return area >= 40000 && aspectRatio >= 0.4 && aspectRatio <= 3.0;
   }
+}
+
+// Helper function to detect circular patterns (logos, stamps)
+async function detectCircularPattern(pixels: Uint8Array, width: number, height: number): Promise<boolean> {
+  const centerX = Math.floor(width / 2);
+  const centerY = Math.floor(height / 2);
+  const radius = Math.min(width, height) / 3;
+  
+  let circularEdges = 0;
+  let totalChecked = 0;
+  
+  // Check for circular edge patterns
+  for (let angle = 0; angle < 360; angle += 10) {
+    const x = centerX + Math.cos(angle * Math.PI / 180) * radius;
+    const y = centerY + Math.sin(angle * Math.PI / 180) * radius;
+    
+    if (x >= 0 && x < width && y >= 0 && y < height) {
+      const pixelIndex = Math.floor(y) * width + Math.floor(x);
+      if (pixelIndex < pixels.length - 1) {
+        const edgeStrength = Math.abs(pixels[pixelIndex] - pixels[pixelIndex + 1]);
+        if (edgeStrength > 30) {
+          circularEdges++;
+        }
+        totalChecked++;
+      }
+    }
+  }
+  
+  // If more than 60% of circular samples have edges, likely a circular logo
+  return totalChecked > 0 && (circularEdges / totalChecked) > 0.6;
+}
+
+// Helper function to detect table patterns (regular grid structures)
+async function detectTablePattern(pixels: Uint8Array, width: number, height: number): Promise<boolean> {
+  let horizontalLines = 0;
+  let verticalLines = 0;
+  
+  // Check for horizontal lines
+  for (let y = 0; y < height; y += 10) {
+    let lineStrength = 0;
+    for (let x = 0; x < width - 1; x++) {
+      const pixelIndex = y * width + x;
+      if (pixelIndex < pixels.length - 1) {
+        const edgeStrength = Math.abs(pixels[pixelIndex] - pixels[pixelIndex + 1]);
+        if (edgeStrength > 20) {
+          lineStrength++;
+        }
+      }
+    }
+    if (lineStrength > width * 0.3) {
+      horizontalLines++;
+    }
+  }
+  
+  // Check for vertical lines
+  for (let x = 0; x < width; x += 10) {
+    let lineStrength = 0;
+    for (let y = 0; y < height - 1; y++) {
+      const pixelIndex = y * width + x;
+      const belowIndex = (y + 1) * width + x;
+      if (belowIndex < pixels.length) {
+        const edgeStrength = Math.abs(pixels[pixelIndex] - pixels[belowIndex]);
+        if (edgeStrength > 20) {
+          lineStrength++;
+        }
+      }
+    }
+    if (lineStrength > height * 0.3) {
+      verticalLines++;
+    }
+  }
+  
+  // If we have multiple horizontal and vertical lines, likely a table
+  return horizontalLines >= 3 && verticalLines >= 2;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
