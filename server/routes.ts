@@ -328,24 +328,30 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const imageInfo = await sharp(imageBuffer).metadata();
       console.log(`Original image size: ${imageInfo.width}x${imageInfo.height} (${imageFile})`);
       
-      // Calculate upscale factor based on image size
-      const minDesiredWidth = 800;
-      const minDesiredHeight = 600;
+      // Calculate upscale factor only for very small images
+      const minDesiredWidth = 400;
+      const minDesiredHeight = 300;
       const scaleFactorX = imageInfo.width! < minDesiredWidth ? minDesiredWidth / imageInfo.width! : 1;
       const scaleFactorY = imageInfo.height! < minDesiredHeight ? minDesiredHeight / imageInfo.height! : 1;
-      const scaleFactor = Math.max(scaleFactorX, scaleFactorY, 2); // Minimum 2x upscale
+      const scaleFactor = Math.max(scaleFactorX, scaleFactorY, 1); // Only upscale if needed
       
       const targetWidth = Math.round(imageInfo.width! * scaleFactor);
       const targetHeight = Math.round(imageInfo.height! * scaleFactor);
       
       console.log(`Upscaling to: ${targetWidth}x${targetHeight} (${scaleFactor}x)`);
       
-      const webpBuffer = await sharp(imageBuffer)
-        .resize(targetWidth, targetHeight, {
+      let processedImage = sharp(imageBuffer);
+      
+      // Only resize if upscaling is needed
+      if (scaleFactor > 1) {
+        processedImage = processedImage.resize(targetWidth, targetHeight, {
           kernel: sharp.kernel.lanczos3,
           withoutEnlargement: false,
           fastShrinkOnLoad: false
-        })
+        });
+      }
+      
+      const webpBuffer = await processedImage
         .extend({
           top: Math.max(30, Math.floor(targetHeight * 0.03)),
           bottom: Math.max(30, Math.floor(targetHeight * 0.03)),
@@ -369,10 +375,9 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
         .gamma(1.2)
         .normalize()
         .webp({ 
-          quality: 98,
-          effort: 6,
-          smartSubsample: false,
-          nearLossless: true
+          quality: 85,
+          effort: 4,
+          smartSubsample: true
         })
         .toBuffer();
       
@@ -393,24 +398,30 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
       const tableInfo = await sharp(tableBuffer).metadata();
       console.log(`Original table image size: ${tableInfo.width}x${tableInfo.height} (${tableImageFile})`);
       
-      // Calculate upscale factor for table images
-      const minDesiredWidth = 1000;
-      const minDesiredHeight = 600;
+      // Calculate upscale factor only for very small table images
+      const minDesiredWidth = 500;
+      const minDesiredHeight = 300;
       const scaleFactorX = tableInfo.width! < minDesiredWidth ? minDesiredWidth / tableInfo.width! : 1;
       const scaleFactorY = tableInfo.height! < minDesiredHeight ? minDesiredHeight / tableInfo.height! : 1;
-      const scaleFactor = Math.max(scaleFactorX, scaleFactorY, 2); // Minimum 2x upscale
+      const scaleFactor = Math.max(scaleFactorX, scaleFactorY, 1); // Only upscale if needed
       
       const targetWidth = Math.round(tableInfo.width! * scaleFactor);
       const targetHeight = Math.round(tableInfo.height! * scaleFactor);
       
       console.log(`Upscaling table to: ${targetWidth}x${targetHeight} (${scaleFactor}x)`);
       
-      const webpBuffer = await sharp(tableBuffer)
-        .resize(targetWidth, targetHeight, {
+      let processedTable = sharp(tableBuffer);
+      
+      // Only resize if upscaling is needed
+      if (scaleFactor > 1) {
+        processedTable = processedTable.resize(targetWidth, targetHeight, {
           kernel: sharp.kernel.lanczos3,
           withoutEnlargement: false,
           fastShrinkOnLoad: false
-        })
+        });
+      }
+      
+      const webpBuffer = await processedTable
         .extend({
           top: Math.max(25, Math.floor(targetHeight * 0.02)),
           bottom: Math.max(25, Math.floor(targetHeight * 0.02)),
@@ -434,10 +445,9 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
         .gamma(1.2)
         .normalize()
         .webp({ 
-          quality: 98,
-          effort: 6,
-          smartSubsample: false,
-          nearLossless: true
+          quality: 85,
+          effort: 4,
+          smartSubsample: true
         })
         .toBuffer();
       
