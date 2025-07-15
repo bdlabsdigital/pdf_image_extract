@@ -360,24 +360,25 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
           background: { r: 255, g: 255, b: 255, alpha: 1 }
         })
         .sharpen({
-          sigma: 1.0,
-          m1: 1.0,
-          m2: 2.0,
+          sigma: 0.8,
+          m1: 1.2,
+          m2: 2.5,
           x1: 2.0,
           y2: 10.0,
           y3: 20.0
         })
         .modulate({
-          brightness: 1.05,
-          saturation: 1.1,
+          brightness: 1.02,
+          saturation: 1.05,
           hue: 0
         })
-        .gamma(1.2)
+        .gamma(1.1)
         .normalize()
         .webp({ 
-          quality: 85,
-          effort: 4,
-          smartSubsample: true
+          quality: 95,
+          effort: 6,
+          smartSubsample: false,
+          nearLossless: true
         })
         .toBuffer();
       
@@ -430,24 +431,25 @@ async function processAdobeResults(resultZipPath: string, jobId: number) {
           background: { r: 255, g: 255, b: 255, alpha: 1 }
         })
         .sharpen({
-          sigma: 1.0,
-          m1: 1.0,
-          m2: 2.0,
+          sigma: 0.8,
+          m1: 1.2,
+          m2: 2.5,
           x1: 2.0,
           y2: 10.0,
           y3: 20.0
         })
         .modulate({
-          brightness: 1.05,
-          saturation: 1.1,
+          brightness: 1.02,
+          saturation: 1.05,
           hue: 0
         })
-        .gamma(1.2)
+        .gamma(1.1)
         .normalize()
         .webp({ 
-          quality: 85,
-          effort: 4,
-          smartSubsample: true
+          quality: 95,
+          effort: 6,
+          smartSubsample: false,
+          nearLossless: true
         })
         .toBuffer();
       
