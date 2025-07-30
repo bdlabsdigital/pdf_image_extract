@@ -169,6 +169,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check API health
   app.get("/api/health", async (req, res) => {
     try {
+      // Debug: Log the environment variables (without exposing full values)
+      console.log("ADOBE_CLIENT_ID exists:", !!ADOBE_CLIENT_ID);
+      console.log("ADOBE_CLIENT_SECRET exists:", !!ADOBE_CLIENT_SECRET);
+      console.log("ADOBE_CLIENT_ID length:", ADOBE_CLIENT_ID?.length || 0);
+      console.log("ADOBE_CLIENT_SECRET length:", ADOBE_CLIENT_SECRET?.length || 0);
+      
       // Check if Adobe credentials are configured
       if (ADOBE_CLIENT_ID && ADOBE_CLIENT_SECRET) {
         res.json({ 
