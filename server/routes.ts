@@ -29,9 +29,13 @@ interface MulterRequest extends Request {
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Adobe PDF Services configuration
-const ADOBE_CLIENT_ID = process.env.ADOBE_CLIENT_ID;
-const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET;
+// Adobe PDF Services configuration - lazy loaded to ensure dotenv is initialized
+function getAdobeCredentials() {
+  return {
+    clientId: process.env.ADOBE_CLIENT_ID,
+    clientSecret: process.env.ADOBE_CLIENT_SECRET
+  };
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get recent processing jobs
@@ -169,14 +173,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check API health
   app.get("/api/health", async (req, res) => {
     try {
+      const { clientId, clientSecret } = getAdobeCredentials();
+      
       // Debug: Log the environment variables (without exposing full values)
-      console.log("ADOBE_CLIENT_ID exists:", !!ADOBE_CLIENT_ID);
-      console.log("ADOBE_CLIENT_SECRET exists:", !!ADOBE_CLIENT_SECRET);
-      console.log("ADOBE_CLIENT_ID length:", ADOBE_CLIENT_ID?.length || 0);
-      console.log("ADOBE_CLIENT_SECRET length:", ADOBE_CLIENT_SECRET?.length || 0);
+      console.log("ADOBE_CLIENT_ID exists:", !!clientId);
+      console.log("ADOBE_CLIENT_SECRET exists:", !!clientSecret);
+      console.log("ADOBE_CLIENT_ID length:", clientId?.length || 0);
+      console.log("ADOBE_CLIENT_SECRET length:", clientSecret?.length || 0);
       
       // Check if Adobe credentials are configured
-      if (ADOBE_CLIENT_ID && ADOBE_CLIENT_SECRET) {
+      if (clientId && clientSecret) {
         res.json({ 
           status: "connected", 
           adobe: { status: "ok", message: "Adobe PDF Services configured" }
@@ -223,9 +229,10 @@ async function processDocumentWithAdobe(
     fs.writeFileSync(tempFile, fileBuffer);
 
     // Initialize Adobe PDF Services
+    const { clientId, clientSecret } = getAdobeCredentials();
     const credentials = new ServicePrincipalCredentials({
-      clientId: ADOBE_CLIENT_ID!,
-      clientSecret: ADOBE_CLIENT_SECRET!
+      clientId: clientId!,
+      clientSecret: clientSecret!
     });
 
     const pdfServices = new PDFServices({ credentials });
