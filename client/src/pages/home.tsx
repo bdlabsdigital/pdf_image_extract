@@ -52,7 +52,7 @@ export default function Home() {
       setProcessingJobId(data.jobId);
       toast({
         title: "Processing Started",
-        description: "Your math paper is being processed...",
+        description: "Your PDF document is being processed...",
       });
     },
     onError: (error) => {
@@ -133,11 +133,11 @@ export default function Home() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mr-3">
-                <span className="text-white font-bold text-lg">M</span>
+                <span className="text-white font-bold text-lg">P</span>
               </div>
               <div>
-                <h1 className="text-lg font-semibold text-gray-900">Math Paper Parser</h1>
-                <p className="text-xs text-gray-500">Singapore Math Papers → JSON + Images</p>
+                <h1 className="text-lg font-semibold text-gray-900">PDF Image Extract Tool</h1>
+                <p className="text-xs text-gray-500">PDF Documents → JSON + Images</p>
               </div>
               <div className="ml-4 px-3 py-1 bg-blue-100 rounded-full">
                 <p className="text-xs text-blue-800 font-medium">API Credit Optimized</p>
@@ -162,7 +162,7 @@ export default function Home() {
             {/* Upload Section */}
             <Card>
               <CardHeader>
-                <CardTitle>Upload Math Paper</CardTitle>
+                <CardTitle>Upload PDF Document</CardTitle>
               </CardHeader>
               <CardContent>
                 <FileUpload
@@ -189,7 +189,7 @@ export default function Home() {
                     disabled={!uploadedFile || processMutation.isPending}
                     className="w-full"
                   >
-                    {processMutation.isPending ? "Processing..." : "Process Math Paper"}
+                    {processMutation.isPending ? "Processing..." : "Process PDF Document"}
                   </Button>
                 </div>
               </CardContent>

@@ -50,7 +50,7 @@ export function ProcessingOptions({ options, onChange }: ProcessingOptionsProps)
 
       <div className="space-y-4">
         <div className="text-sm text-gray-600 p-3 bg-blue-50 rounded-md">
-          <strong>Adobe PDF Services</strong> automatically extracts text, images, and tables from PDF documents. Processing options are optimized for Singapore math papers.
+          <strong>Adobe PDF Services</strong> automatically extracts text, images, and tables from PDF documents. Processing options are optimized for PDF documents with images and text.
         </div>
       </div>
     </div>
