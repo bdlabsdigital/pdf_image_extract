@@ -40,7 +40,7 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
+async function createServer() {
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -60,10 +60,16 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Serve the app on port 3000 (changed from 5000 due to macOS ControlCenter conflict)
-  // this serves both the API and the client.
-  const port = 3000;
-  server.listen(port, () => {
-    log(`serving on port ${port}`);
-  });
-})();
+  // For development, start the server
+  if (process.env.NODE_ENV === "development") {
+    const port = 3000;
+    server.listen(port, () => {
+      log(`serving on port ${port}`);
+    });
+  }
+
+  return app;
+}
+
+// For Vercel, export the app
+export default process.env.NODE_ENV === "production" ? await createServer() : createServer().then(() => app);
