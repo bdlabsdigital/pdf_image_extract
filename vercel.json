@@ -23,10 +23,5 @@
       "src": "/(.*)",
       "dest": "/client/dist/$1"
     }
-  ],
-  "functions": {
-    "dist/index.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
