@@ -8,20 +8,6 @@
         "buildCommand": "npm run build",
         "outputDirectory": "client/dist"
       }
-    },
-    {
-      "src": "dist/index.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/dist/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/client/dist/$1"
     }
   ]
 }
