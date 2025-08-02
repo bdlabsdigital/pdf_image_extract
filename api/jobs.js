@@ -1,4 +1,4 @@
-export default function handler(req, res) {
+module.exports = function handler(req, res) {
   if (req.method === 'GET') {
     // For now, return empty array since we need to implement storage
     res.status(200).json([]);
@@ -6,4 +6,4 @@ export default function handler(req, res) {
     res.setHeader('Allow', ['GET']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
-}
+};
