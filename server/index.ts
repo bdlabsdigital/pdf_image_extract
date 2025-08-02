@@ -71,5 +71,5 @@ async function createServer() {
   return app;
 }
 
-// For Vercel, export the app
-export default process.env.NODE_ENV === "production" ? await createServer() : createServer().then(() => app);
+// For Vercel serverless function, export the Express app
+export default await createServer();
